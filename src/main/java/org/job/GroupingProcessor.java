@@ -98,7 +98,7 @@ public class GroupingProcessor {
         System.out.println("Групп больше чем из одной строки: " + resultGroups.size());
         System.out.println("Время мс: " + durationMs);
         Runtime runtime = Runtime.getRuntime();
-        runtime.gc(); // Запускаем сборщик мусора для более точного измерения
+        runtime.gc();
 
         long usedMemoryBytes = runtime.totalMemory() - runtime.freeMemory();
         System.out.println("Used memory (MB): " + usedMemoryBytes / (1024 * 1024));
