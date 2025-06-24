@@ -10,28 +10,31 @@ public class GroupingProcessor {
         long startTime = System.nanoTime();
         Path input = Paths.get(inputFilePath);
 
-        List<List<String>> rows = new ArrayList<>();
+        List<String[]> rows = new ArrayList<>();
         Map<String, List<Integer>> valueColumnToRows = new HashMap<>();
 
+        BufferedReader reader;
+        if (inputFilePath.endsWith(".gz")) {
+            reader = new BufferedReader(new InputStreamReader(new GZIPInputStream(Files.newInputStream(input)), "UTF-8"));
+        } else {
+            reader = Files.newBufferedReader(Paths.get(inputFilePath));
+        }
 
-        try (BufferedReader reader = new BufferedReader(
-                new InputStreamReader(new GZIPInputStream(Files.newInputStream(input)), "UTF-8"))) {
-
+        try (reader ) {
             String line;
             while ((line = reader.readLine()) != null) {
                 if (line.trim().isEmpty()) continue;
                 if (line.matches(".*\"\\d+\"\\d+.*")) continue;
 
                 String[] parts = line.split(";");
-                List<String> cleaned = new ArrayList<>();
-                for (String part : parts) {
-                    cleaned.add(part.replace("\"", "").trim());
+                for (int i = 0; i < parts.length; i++) {
+                    parts[i] = parts[i].replace("\"", "").trim();
                 }
                 int rowIndex = rows.size();
-                rows.add(cleaned);
+                rows.add(parts);
 
-                for (int i = 0; i < cleaned.size(); i++) {
-                    String value = cleaned.get(i);
+                for (int i = 0; i < parts.length; i++) {
+                    String value = parts[i];
                     if (!value.isEmpty()) {
                         String key = value + "#" + i;
                         valueColumnToRows.computeIfAbsent(key, k -> new ArrayList<>()).add(rowIndex);
@@ -40,14 +43,13 @@ public class GroupingProcessor {
             }
         }
 
-
         UnionFind uf = new UnionFind(rows.size());
         for (List<Integer> indices : valueColumnToRows.values()) {
+            int first = indices.get(0);
             for (int i = 1; i < indices.size(); i++) {
-                uf.union(indices.get(0), indices.get(i));
+                uf.union(first, indices.get(i));
             }
         }
-
 
         Map<Integer, Set<Integer>> groups = new HashMap<>();
         for (int i = 0; i < rows.size(); i++) {
@@ -55,26 +57,21 @@ public class GroupingProcessor {
             groups.computeIfAbsent(root, k -> new HashSet<>()).add(i);
         }
 
-
         List<List<String>> resultGroups = new ArrayList<>();
         for (Set<Integer> group : groups.values()) {
             if (group.size() > 1) {
-                List<String> groupLines = new ArrayList<>();
+                Set<String> groupLines = new TreeSet<>();
                 for (int idx : group) {
                     groupLines.add(String.join(";", rows.get(idx)));
                 }
-                Collections.sort(groupLines);
-                resultGroups.add(groupLines);
+                resultGroups.add(new ArrayList<>(groupLines));
             }
         }
 
-
-        resultGroups.sort((a, b) -> {
-            int countB = totalNonEmptyElements(b);
-            int countA = totalNonEmptyElements(a);
-            return Integer.compare(countB, countA);
-        });
-
+        resultGroups.sort((a, b) -> Integer.compare(
+                b.stream().mapToInt(s -> (int) Arrays.stream(s.split(";")).filter(p -> !p.isEmpty()).count()).sum(),
+                a.stream().mapToInt(s -> (int) Arrays.stream(s.split(";")).filter(p -> !p.isEmpty()).count()).sum()
+        ));
 
         try (BufferedWriter writer = Files.newBufferedWriter(Paths.get("output.txt"))) {
             writer.write("Групп больше чем из одной строки: " + resultGroups.size());
@@ -98,21 +95,8 @@ public class GroupingProcessor {
         System.out.println("Групп больше чем из одной строки: " + resultGroups.size());
         System.out.println("Время мс: " + durationMs);
         Runtime runtime = Runtime.getRuntime();
-        runtime.gc(); // Запускаем сборщик мусора для более точного измерения
-
+        runtime.gc();
         long usedMemoryBytes = runtime.totalMemory() - runtime.freeMemory();
         System.out.println("Used memory (MB): " + usedMemoryBytes / (1024 * 1024));
-    }
-
-    private int totalNonEmptyElements(List<String> group) {
-        int count = 0;
-        for (String line : group) {
-            for (String part : line.split(";")) {
-                if (!part.trim().isEmpty()) {
-                    count++;
-                }
-            }
-        }
-        return count;
     }
 }
