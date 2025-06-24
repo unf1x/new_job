@@ -43,6 +43,7 @@ public class GroupingProcessor {
             }
         }
 
+
         UnionFind uf = new UnionFind(rows.size());
         for (List<Integer> indices : valueColumnToRows.values()) {
             int first = indices.get(0);
@@ -51,11 +52,13 @@ public class GroupingProcessor {
             }
         }
 
+
         Map<Integer, Set<Integer>> groups = new HashMap<>();
         for (int i = 0; i < rows.size(); i++) {
             int root = uf.find(i);
             groups.computeIfAbsent(root, k -> new HashSet<>()).add(i);
         }
+
 
         List<List<String>> resultGroups = new ArrayList<>();
         for (Set<Integer> group : groups.values()) {
@@ -98,5 +101,17 @@ public class GroupingProcessor {
         runtime.gc();
         long usedMemoryBytes = runtime.totalMemory() - runtime.freeMemory();
         System.out.println("Used memory (MB): " + usedMemoryBytes / (1024 * 1024));
+    }
+
+    private int totalNonEmptyElements(List<String> group) {
+        int count = 0;
+        for (String line : group) {
+            for (String part : line.split(";")) {
+                if (!part.trim().isEmpty()) {
+                    count++;
+                }
+            }
+        }
+        return count;
     }
 }
