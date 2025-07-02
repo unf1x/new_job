@@ -8,12 +8,27 @@ import java.util.regex.Pattern;
 import java.util.zip.GZIPInputStream;
 
 import it.unimi.dsi.fastutil.ints.IntArrayList;
+import it.unimi.dsi.fastutil.longs.Long2IntOpenHashMap;
 import it.unimi.dsi.fastutil.objects.Object2IntOpenHashMap;
 import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap;
 
 public class GroupingProcessor {
     private static final Pattern BAD = Pattern.compile("\"\\d+\"\\d+");
     private final Map<String, String> pool = new HashMap<>();
+
+    private static long hashRow(String[] parts) {
+        long h = 0xcbf29ce484222325L;
+        final long prime = 0x100000001b3L;
+        for (String p : parts) {
+            for (int i = 0; i < p.length(); i++) {
+                h ^= p.charAt(i);
+                h *= prime;
+            }
+            h ^= ';';
+            h *= prime;
+        }
+        return h;
+    }
 
     public void process(String inputFilePath) throws Exception {
         long startTime = System.nanoTime();
@@ -25,7 +40,8 @@ public class GroupingProcessor {
         Object2IntOpenHashMap<String> firstRow = new Object2IntOpenHashMap<>();
         firstRow.defaultReturnValue(-1);
         Object2ObjectOpenHashMap<String, IntArrayList> duplicates = new Object2ObjectOpenHashMap<>();
-        Object2IntOpenHashMap<String> seen = new Object2IntOpenHashMap<>();
+
+        Long2IntOpenHashMap seen = new Long2IntOpenHashMap();
         seen.defaultReturnValue(-1);
 
         try (BufferedReader reader = inputFilePath.endsWith(".gz")
@@ -41,8 +57,8 @@ public class GroupingProcessor {
                     parts[i] = pool.computeIfAbsent(raw, k -> k);
                 }
 
-                String rowKey = String.join(";", parts);
-                int existed = seen.getInt(rowKey);
+                long rowKey = hashRow(parts);
+                int existed = seen.get(rowKey);
                 if (existed != -1) {
                     continue;
                 }
@@ -89,7 +105,8 @@ public class GroupingProcessor {
             long grpCount = groups.values().stream().filter(g -> g.size() > 1).count();
             writer.write("Групп больше чем из одной строки: " + grpCount);
             System.out.println("Групп больше чем из одной строки: " + grpCount);
-            writer.newLine(); writer.newLine();
+            writer.newLine();
+            writer.newLine();
             List<IntArrayList> sortedGroups = new ArrayList<>(groups.values());
             sortedGroups.sort((a, b) -> Integer.compare(b.size(), a.size()));
             int num = 1;
