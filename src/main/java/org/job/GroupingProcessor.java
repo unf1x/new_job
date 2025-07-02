@@ -25,6 +25,8 @@ public class GroupingProcessor {
         Object2IntOpenHashMap<String> firstRow = new Object2IntOpenHashMap<>();
         firstRow.defaultReturnValue(-1);
         Object2ObjectOpenHashMap<String, IntArrayList> duplicates = new Object2ObjectOpenHashMap<>();
+        Object2IntOpenHashMap<String> seen = new Object2IntOpenHashMap<>();
+        seen.defaultReturnValue(-1);
 
         try (BufferedReader reader = inputFilePath.endsWith(".gz")
                 ? new BufferedReader(new InputStreamReader(new GZIPInputStream(Files.newInputStream(input)), StandardCharsets.UTF_8))
@@ -38,8 +40,15 @@ public class GroupingProcessor {
                     String raw = parts[i].replace("\"", "").trim();
                     parts[i] = pool.computeIfAbsent(raw, k -> k);
                 }
+
+                String rowKey = String.join(";", parts);
+                int existed = seen.getInt(rowKey);
+                if (existed != -1) {
+                    continue;
+                }
                 int rowIndex = rows.size();
                 rows.add(parts);
+                seen.put(rowKey, rowIndex);
 
                 for (int col = 0; col < parts.length; col++) {
                     String value = parts[col];
@@ -81,9 +90,10 @@ public class GroupingProcessor {
             writer.write("Групп больше чем из одной строки: " + grpCount);
             System.out.println("Групп больше чем из одной строки: " + grpCount);
             writer.newLine(); writer.newLine();
-
+            List<IntArrayList> sortedGroups = new ArrayList<>(groups.values());
+            sortedGroups.sort((a, b) -> Integer.compare(b.size(), a.size()));
             int num = 1;
-            for (IntArrayList g : groups.values()) {
+            for (IntArrayList g : sortedGroups) {
                 if (g.size() <= 1) continue;
                 writer.write("Группа " + num++);
                 writer.newLine();
